@@ -44,10 +44,6 @@ def write_cmd_error_log():
     pass
 
 
-def write_alias():
-    pass
-
-
 def search_alias(cmd_string):
     aliases = open(CMD_ALIASES, "r")
     cmd_string = cmd_string.replace("\n", "")

@@ -5,6 +5,7 @@ import exception
 from subprocess import call
 import signal
 import writeLog
+import string
 
 SHELL_STATUS_RUN = 0
 SHELL_STATUS_STOP = 1
@@ -54,7 +55,7 @@ def read_cmd():
 
     #len(ctrl-D) == 0
     if len(cmd_string) == 0:
-        print("len == 0")
+        #print("len == 0")
         EXECUTE_QUIT = True
         return
     elif "exit" in cmd_string or "logout" in cmd_string:
@@ -67,7 +68,7 @@ def read_cmd():
         else:
             cmd_string = cmd_string.replace("~", USER_HOME)
             alias_line = writeLog.search_alias(cmd_string)
-            print(alias_line)
+            #print(alias_line)
             if alias_line[0]:
                 return alias_line[1]
             return cmd_string
@@ -134,7 +135,7 @@ def shell_loop():
             EXECUTE_NONE = False
             continue
         elif EXECUTE_QUIT == True:
-            print("EXECUTE_QUIT")
+            #print("EXECUTE_QUIT")
             EXECUTE_QUIT = False
             break
         else:
@@ -150,6 +151,16 @@ def test():
     # print(test.replace(" ", ""))
 
     # open("test", "w")
+
+    # test = "read -n1"
+    # test = tokenize(test)
+    # os.execvp(test[0], test)
+
+    ch = sys.stdin.read(1)
+    print(ord(ch) == 27)
+    print(ord('A'))
+    ch = ch.replace("\n", "")
+    print(ch == "^[[A")
     pass
 
 
