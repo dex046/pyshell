@@ -1,1 +1,1 @@
-A shell interpreter writen with Python
+A shell interpreter written in Python
