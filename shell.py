@@ -27,6 +27,7 @@ BACKGROUND = False
 
 LAST_PID = 0
 
+
 def handle_signal(signum, frame):
     """
 
@@ -270,6 +271,9 @@ def forkexec(cmd_obj):
         #     os.dup(cmd_obj.outfd)
 
         # print(cmd_obj.cmd_args[0] + " " + str(cmd_obj.infd) + " " + str(cmd_obj.outfd))
+        if not BACKGROUND:
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            signal.signal(signal.SIGQUIT, signal.SIG_DFL)
         try:
             os.execvp(cmd_obj.cmd_args[0], cmd_obj.cmd_args)
 
