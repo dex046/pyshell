@@ -179,17 +179,26 @@ def execute(cmd_list):
             cmd_list[index].infd = os.open(cmd_list[index].infile_name, os.O_RDONLY)
 
         if len(cmd_list[index].outfile_name) != 0:
-            #print(cmd_list[index].outfile_name[-1][0])
+            # print(cmd_list[index].outfile_name[-1][0])
             if cmd_list[index].outfile_name[-1][1] == os.O_WRONLY | os.O_CREAT:
                 cmd_list[index].outfd = os.open(cmd_list[index].outfile_name[-1][0], os.O_WRONLY | os.O_CREAT)
             elif cmd_list[index].outfile_name[-1][1] == os.O_APPEND:
                 cmd_list[index].outfd = os.open(cmd_list[index].outfile_name[-1][0], os.O_WRONLY | os.O_APPEND | os.O_CREAT)
             else:
                 print("open outfile error")
-
+        # 因为父进程不会等待子进程（后台进程）的推出，所以为了避免僵尸进程，忽略SIGCHLD信号
         if BACKGROUND:
             signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-        
+        else:
+            signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+        BUILTIN = builtin(cmd_list[index])
+        if BUILTIN:
+            if cmd_list[index].infd != 0:
+                os.close(cmd_list[index].infd)
+            if cmd_list[index].outfd != 1:
+                os.close(cmd_list[index].outfd)
+            continue
 
         forkexec(cmd_list[index])
 
@@ -201,7 +210,7 @@ def execute(cmd_list):
         if not BACKGROUND:
             while True:
                 wpid, status = os.wait()
-                print("wait %d" % wpid)
+                # print("wait %d" % wpid)
                 if wpid == LAST_PID:
                     break
 
@@ -216,62 +225,67 @@ def execute(cmd_list):
         # #for len(cmd.)
 
 
+def builtin(cmd_obj):
+    if 'cd' in cmd_obj.cmd_args:
+        if len(cmd_obj.cmd_args) == 1:
+            path = USER_HOME
+        else:
+            path = cmd_obj.cmd_args[1]
+        if os.path.exists(path):
+            os.chdir(path)
+        else:
+            sys.stdout.write('cd: cannot access \'%s\': No such file or directory\n' % path)
+            sys.stdout.flush()
+            try:
+                os.kill(os.getpid(), 9)
+            except OSError:
+                print("OSError")
+        return True
+    elif "history" in cmd_obj.cmd_args:
+        return True
+    else:
+        return False
+
 
 def forkexec(cmd_obj):
     #print(cmd_tokens)
     pid = os.fork()
     if pid == 0:
-        # try:
-        if 'cd' in cmd_obj.cmd_args:
-            if len(cmd_obj.cmd_args) == 1:
-                path = USER_HOME
-            else:
-                path = cmd_obj.cmd_args[1]
-            if os.path.exists(path):
-                os.chdir(path)
-            else:
-                sys.stdout.write('cd: cannot access \'%s\': No such file or directory\n' % path)
-                sys.stdout.flush()
-                try:
-                    os.kill(os.getpid(), 9)
-                except OSError:
-                    print("OSError")
-        else:
-            # 为什么一定要将0绑定输入，1绑定输出，
-            # 因为0,1默认情况下是指标准输入与标准输出
-            # 所以命令执行完毕后的结果一般也是直接写入fd=1的标准输出上，改成0,1后可以使得原来输出到终端上的信息输出
-            # 到管道中，从而使得另一个命令从管道中读取信息
-            #print(cmd_obj.cmd_args)
-            #print(cmd_obj.cmd_args[0] + " " + str(cmd_obj.infd) + " " + str(cmd_obj.outfd))
-            os.dup2(cmd_obj.infd, 0)
-            # if cmd_obj.infd != 0:
-            #     print("here infd")
-            #     os.close(0)
-            #     os.dup(cmd_obj.infd)
+        # 为什么一定要将0绑定输入，1绑定输出，
+        # 因为0,1默认情况下是指标准输入与标准输出
+        # 所以命令执行完毕后的结果一般也是直接写入fd=1的标准输出上，改成0,1后可以使得原来输出到终端上的信息输出
+        # 到管道中，从而使得另一个命令从管道中读取信息
+        # print(cmd_obj.cmd_args)
+        # print(cmd_obj.cmd_args[0] + " " + str(cmd_obj.infd) + " " + str(cmd_obj.outfd))
+        os.dup2(cmd_obj.infd, 0)
+        # if cmd_obj.infd != 0:
+        #     print("here infd")
+        #     os.close(0)
+        #     os.dup(cmd_obj.infd)
 
-            os.dup2(cmd_obj.outfd, 1)
-            # if cmd_obj.outfd != 1:
-            #     print("here outfd")
-            #     os.close(1)
-            #     os.dup(cmd_obj.outfd)
+        os.dup2(cmd_obj.outfd, 1)
+        # if cmd_obj.outfd != 1:
+        #     print("here outfd")
+        #     os.close(1)
+        #     os.dup(cmd_obj.outfd)
 
-            #print(cmd_obj.cmd_args[0] + " " + str(cmd_obj.infd) + " " + str(cmd_obj.outfd))
+        # print(cmd_obj.cmd_args[0] + " " + str(cmd_obj.infd) + " " + str(cmd_obj.outfd))
+        try:
+            os.execvp(cmd_obj.cmd_args[0], cmd_obj.cmd_args)
+
+        except FileNotFoundError:
+            sys.stdout.write("%s: command not found\n" % cmd_obj.cmd_args[0])
+            sys.stdout.flush()
             try:
-                os.execvp(cmd_obj.cmd_args[0], cmd_obj.cmd_args)
-
-            except FileNotFoundError:
-                sys.stdout.write("%s: command not found\n" % cmd_obj.cmd_args[0])
-                sys.stdout.flush()
-                try:
-                    os.kill(os.getpid(), 9)
-                except OSError:
-                    print("OSError")
-            except IndexError:
-                pass
+                os.kill(os.getpid(), 9)
             except OSError:
-                pass
-            except TypeError:
-                pass
+                print("OSError")
+        except IndexError:
+            pass
+        except OSError:
+            pass
+        except TypeError:
+            pass
 
     elif pid > 0:
         global LAST_PID
@@ -280,10 +294,12 @@ def forkexec(cmd_obj):
         if BACKGROUND:
             sys.stdout.write("process id %d.\n" % pid)
             sys.stdout.flush()
-        # while True:
-        #     wpid, status = os.waitpid(pid, 0)
-        #     if os.WIFEXITED(status) or os.WIFSIGNALED(status):
-        #         break
+
+        if 'cd' in cmd_obj.cmd_args:
+            while True:
+                wpid, status = os.waitpid(pid, 0)
+                if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+                    break
     return SHELL_STATUS_RUN
 
 
