@@ -7,6 +7,7 @@ import signal
 import writeLog
 import string
 import Command
+from Error_handle import Error_handle
 
 SHELL_STATUS_RUN = 0
 SHELL_STATUS_STOP = 1
@@ -21,6 +22,10 @@ CMD_HISTORY_FILE = USER_HOME + "/.shell_history"
 CMD_ALIASES = USER_HOME + "/.shell_aliases"
 
 
+BACKGROUND = False
+
+
+LAST_PID = 0
 
 def handle_signal(signum, frame):
     """
@@ -145,9 +150,16 @@ def parse(cmd_string):
                 cmd.outfile_name.append([file_name[file_i], os.O_APPEND])
                 cmd_string[index] = cmd_string[index].replace(">>", " ")
                 cmd_string[index] = cmd_string[index].replace(file_name[file_i], " ")
-
             #cmd.outfd = os.open(file_name, os.O_WRONLY | os.O_APPEND)
 
+        if "&" in cmd_string[index]:
+            if index != len(cmd_string) - 1:
+
+                Error_handle.error_handle(Error_handle.SYNTAX_ERROR)
+            else:
+                cmd_string[index] = cmd_string[index].replace("&", " ")
+                global BACKGROUND
+                BACKGROUND = True
         #print(cmd_string[index])
         cmd.cmd_args = tokenize(cmd_string[index])
         cmd_list.append(cmd)
@@ -175,12 +187,23 @@ def execute(cmd_list):
             else:
                 print("open outfile error")
 
+        if BACKGROUND:
+            signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+        
+
         forkexec(cmd_list[index])
 
         if cmd_list[index].infd != 0:
             os.close(cmd_list[index].infd)
         if cmd_list[index].outfd != 1:
             os.close(cmd_list[index].outfd)
+
+        if not BACKGROUND:
+            while True:
+                wpid, status = os.wait()
+                print("wait %d" % wpid)
+                if wpid == LAST_PID:
+                    break
 
         # cmd = cmd_list[index]
         # #if index != len(cmd_list) - 1:
@@ -200,7 +223,10 @@ def forkexec(cmd_obj):
     if pid == 0:
         # try:
         if 'cd' in cmd_obj.cmd_args:
-            path = cmd_obj.cmd_args[1]
+            if len(cmd_obj.cmd_args) == 1:
+                path = USER_HOME
+            else:
+                path = cmd_obj.cmd_args[1]
             if os.path.exists(path):
                 os.chdir(path)
             else:
@@ -248,16 +274,29 @@ def forkexec(cmd_obj):
                 pass
 
     elif pid > 0:
-        while True:
-            wpid, status = os.waitpid(pid, 0)
-            if os.WIFEXITED(status) or os.WIFSIGNALED(status):
-                break
+        global LAST_PID
+        LAST_PID = pid
+        #print("last"+str(LAST_PID))
+        if BACKGROUND:
+            sys.stdout.write("process id %d.\n" % pid)
+            sys.stdout.flush()
+        # while True:
+        #     wpid, status = os.waitpid(pid, 0)
+        #     if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+        #         break
     return SHELL_STATUS_RUN
+
+
+def init():
+    global LAST_PID, BACKGROUND
+    LAST_PID = 0
+    BACKGROUND = False
 
 
 def shell_loop():
     global EXECUTE_NONE, EXECUTE_QUIT
     while True:
+        init()
         sys.stdout.write(prompt())
         sys.stdout.flush()
 
@@ -349,6 +388,7 @@ def test():
     # os.write(fd[1], str.encode("utf-8"))
     # print(os.read(fd[0], 20))
 
+    #print(Error_handle.SYNTAX_ERROR)
     pass
 
 
