@@ -24,7 +24,6 @@ CMD_ALIASES = USER_HOME + "/.shell_aliases"
 
 BACKGROUND = False
 
-
 LAST_PID = 0
 
 
@@ -37,6 +36,7 @@ def handle_signal(signum, frame):
     """
     #print("signal: " + str(signum) + "\n")
     if signum == signal.SIGINT:
+        # print("pid = %d" % os.getpid())
         sys.stdout.write('\n')
         sys.stdout.write(prompt())
         sys.stdout.flush()
@@ -56,7 +56,8 @@ def prompt():
 def read_cmd():
     global EXECUTE_NONE, EXECUTE_QUIT
     cmd_string = sys.stdin.readline()
-    #print(cmd_string)
+    # print(cmd_string)
+    # print(len(cmd_string))
     none_space_cmd = cmd_string.replace('\t', '').replace('\n', '').replace(' ', '')
 
 
@@ -249,9 +250,13 @@ def builtin(cmd_obj):
 
 
 def forkexec(cmd_obj):
-    #print(cmd_tokens)
+    # print(cmd_tokens)
+    # print(cmd_obj.outfd)
+    # print(cmd_obj.infd)
     pid = os.fork()
     if pid == 0:
+        if BACKGROUND and cmd_obj.infd == 0:
+            cmd_obj.infd = os.open("/dev/null", os.O_RDONLY)
         # 为什么一定要将0绑定输入，1绑定输出，
         # 因为0,1默认情况下是指标准输入与标准输出
         # 所以命令执行完毕后的结果一般也是直接写入fd=1的标准输出上，改成0,1后可以使得原来输出到终端上的信息输出
@@ -271,9 +276,11 @@ def forkexec(cmd_obj):
         #     os.dup(cmd_obj.outfd)
 
         # print(cmd_obj.cmd_args[0] + " " + str(cmd_obj.infd) + " " + str(cmd_obj.outfd))
+        # ctrl-c发送SIGINT信号的时候，是给组内的每个进程发送，
         if not BACKGROUND:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+            # print("%d what" % os.getpid())
         try:
             os.execvp(cmd_obj.cmd_args[0], cmd_obj.cmd_args)
 
@@ -295,6 +302,11 @@ def forkexec(cmd_obj):
         global LAST_PID
         LAST_PID = pid
         #print("last"+str(LAST_PID))
+        # if not SET_PROCESS_GROUP_ID:
+        #     SET_PROCESS_GROUP_ID = True
+        #     os.setpgid(0, 0)
+            # print("here %d" % os.getpgid(pid))
+
         if BACKGROUND:
             sys.stdout.write("process id %d.\n" % pid)
             sys.stdout.flush()
@@ -314,6 +326,7 @@ def init():
 
 
 def shell_loop():
+    # print(os.tcgetpgrp(0))
     global EXECUTE_NONE, EXECUTE_QUIT
     while True:
         init()
@@ -409,6 +422,8 @@ def test():
     # print(os.read(fd[0], 20))
 
     #print(Error_handle.SYNTAX_ERROR)
+
+    # print("%d" % signal.SIGINT)
     pass
 
 
