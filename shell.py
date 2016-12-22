@@ -1,11 +1,8 @@
 import os
 import sys
 import shlex
-import exception
-from subprocess import call
 import signal
 import writeLog
-import string
 import Command
 from Error_handle import Error_handle
 
@@ -14,7 +11,6 @@ SHELL_STATUS_STOP = 1
 
 EXECUTE_QUIT = False
 EXECUTE_NONE = False
-
 
 MAX_CMD_HISTORYLINE = 1000
 USER_HOME = "/home/" + os.getlogin()
@@ -43,13 +39,11 @@ def handle_signal(signum, frame):
 
 
 def prompt():
-    username = os.getlogin()
-    hostname = os.uname()[1]
     cwd = os.getcwd().split('/')[-1]
     if not cwd:
         cwd = '/'
 
-    line = '[' + username + '@' + hostname + cwd + ']$ '
+    line = '[' + os.getlogin() + '@' + os.uname()[1] + cwd + ']$ '
     return line
 
 
@@ -75,17 +69,15 @@ def read_cmd():
             return
         else:
             cmd_string = cmd_string.replace("~", USER_HOME)
-            alias_line = writeLog.search_alias(cmd_string)
-            #print(alias_line)
-            if alias_line[0]:
-                return alias_line[1]
+            have_command, command = writeLog.search_alias(cmd_string)
+            if have_command:
+                return command
             return cmd_string
 
 
 def get_filename(cmd, pattern):
     start = cmd.find(pattern, 0, len(cmd))
     file_name = []
-    index = start + 1
     while start != -1:
         index = start + len(pattern)
         while cmd[index] == pattern:
@@ -194,8 +186,7 @@ def execute(cmd_list):
         else:
             signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
-        BUILTIN = builtin(cmd_list[index])
-        if BUILTIN:
+        if builtin(cmd_list[index]):
             if cmd_list[index].infd != 0:
                 os.close(cmd_list[index].infd)
             if cmd_list[index].outfd != 1:
@@ -228,7 +219,7 @@ def execute(cmd_list):
 
 
 def builtin(cmd_obj):
-    if 'cd' in cmd_obj.cmd_args:
+    if "cd" in cmd_obj.cmd_args:
         if len(cmd_obj.cmd_args) == 1:
             path = USER_HOME
         else:
@@ -311,11 +302,6 @@ def forkexec(cmd_obj):
             sys.stdout.write("process id %d.\n" % pid)
             sys.stdout.flush()
 
-        if 'cd' in cmd_obj.cmd_args:
-            while True:
-                wpid, status = os.waitpid(pid, 0)
-                if os.WIFEXITED(status) or os.WIFSIGNALED(status):
-                    break
     return SHELL_STATUS_RUN
 
 
@@ -334,11 +320,10 @@ def shell_loop():
         sys.stdout.flush()
 
         cmd_string = read_cmd()
-        if EXECUTE_NONE == True:
+        if EXECUTE_NONE:
             EXECUTE_NONE = False
             continue
-        elif EXECUTE_QUIT == True:
-            #print("EXECUTE_QUIT")
+        elif EXECUTE_QUIT:
             EXECUTE_QUIT = False
             break
         else:

@@ -1,9 +1,8 @@
 from shell import MAX_CMD_HISTORYLINE
 from shell import CMD_ALIASES
 from shell import CMD_HISTORY_FILE
-from shell import USER_HOME
 import os
-import shlex
+
 
 
 def write_cmd_history(cmd_tokens):
@@ -13,9 +12,7 @@ def write_cmd_history(cmd_tokens):
         print("create %s file" % CMD_HISTORY_FILE)
         #print("create file")
 
-    cmd_len = len(open(CMD_HISTORY_FILE, "r").readlines())
-
-    if cmd_len >= MAX_CMD_HISTORYLINE:
+    if len(open(CMD_HISTORY_FILE, "r").readlines()) >= MAX_CMD_HISTORYLINE:
         history = open(CMD_HISTORY_FILE, "r")
         lines = history.readlines()
         history.close()
